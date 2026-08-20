@@ -1,0 +1,90 @@
+{
+  "$id": "https://open-metadata.org/schema/entity/services/connections/database/motherDuckConnection.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MotherDuckConnection",
+  "description": "MotherDuck Database Connection Config",
+  "type": "object",
+  "javaType": "org.openmetadata.schema.services.connections.database.MotherDuckConnection",
+  "definitions": {
+    "MotherDuckType": {
+      "description": "Service type.",
+      "type": "string",
+      "enum": ["MotherDuck"],
+      "default": "MotherDuck"
+    },
+    "MotherDuckScheme": {
+      "description": "SQLAlchemy driver scheme options.",
+      "type": "string",
+      "enum": ["duckdb"],
+      "default": "duckdb"
+    }
+  },
+  "properties": {
+    "type": {
+      "title": "Service Type",
+      "description": "Service Type",
+      "$ref": "#/definitions/MotherDuckType",
+      "default": "MotherDuck"
+    },
+    "scheme": {
+      "title": "Connection Scheme",
+      "description": "SQLAlchemy driver scheme used to connect through DuckDB.",
+      "$ref": "#/definitions/MotherDuckScheme",
+      "default": "duckdb"
+    },
+    "token": {
+      "title": "MotherDuck Token",
+      "description": "MotherDuck access token used to authenticate the ingestion connection.",
+      "type": "string",
+      "format": "password"
+    },
+    "database": {
+      "title": "Database",
+      "description": "Optional MotherDuck database to ingest. When omitted, OpenMetadata discovers and ingests all databases visible to the token.",
+      "type": "string"
+    },
+    "connectionArguments": {
+      "title": "Connection Arguments",
+      "$ref": "../connectionBasicType.json#/definitions/connectionArguments"
+    },
+    "databaseFilterPattern": {
+      "title": "Database Filter Pattern",
+      "description": "Regex to include or exclude MotherDuck databases.",
+      "$ref": "../../../../type/filterPattern.json#/definitions/filterPattern"
+    },
+    "schemaFilterPattern": {
+      "title": "Schema Filter Pattern",
+      "description": "Regex to include or exclude schemas.",
+      "$ref": "../../../../type/filterPattern.json#/definitions/filterPattern"
+    },
+    "tableFilterPattern": {
+      "title": "Table Filter Pattern",
+      "description": "Regex to include or exclude tables and views.",
+      "$ref": "../../../../type/filterPattern.json#/definitions/filterPattern"
+    },
+    "supportsMetadataExtraction": {
+      "title": "Supports Metadata Extraction",
+      "$ref": "../connectionBasicType.json#/definitions/supportsMetadataExtraction"
+    },
+    "supportsDBTExtraction": {
+      "$ref": "../connectionBasicType.json#/definitions/supportsDBTExtraction"
+    },
+    "supportsProfiler": {
+      "title": "Supports Profiler",
+      "$ref": "../connectionBasicType.json#/definitions/supportsProfiler"
+    },
+    "supportsQueryComment": {
+      "title": "Supports Query Comment",
+      "$ref": "../connectionBasicType.json#/definitions/supportsQueryComment"
+    },
+    "sampleDataStorageConfig": {
+      "title": "Storage Config for Sample Data",
+      "$ref": "../connectionBasicType.json#/definitions/sampleDataStorageConfig"
+    },
+    "supportsViewLineageExtraction": {
+      "$ref": "../connectionBasicType.json#/definitions/supportsViewLineageExtraction"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["token"]
+}

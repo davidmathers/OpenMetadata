@@ -107,6 +107,10 @@ const databaseSchemaLoaders: Partial<
     import(
       '../jsons/connectionSchemas/connections/database/mysqlConnection.json'
     ),
+  [DatabaseServiceType.MotherDuck]: () =>
+    import(
+      '../jsons/connectionSchemas/connections/database/motherDuckConnection.json'
+    ),
   [DatabaseServiceType.Oracle]: () =>
     import(
       '../jsons/connectionSchemas/connections/database/oracleConnection.json'
