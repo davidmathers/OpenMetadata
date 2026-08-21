@@ -239,9 +239,25 @@ test.describe('Connection config layout', () => {
       'Databricks',
       'Glue',
       'Greenplum',
+      'MotherDuck',
     ]) {
       await expectConnectorConnectionForm(page, connectorName);
     }
+  });
+
+  test('should render the MotherDuck token-first connection form', async ({
+    page,
+  }) => {
+    await test.step('Select MotherDuck and load its generated form', async () => {
+      await expectConnectorConnectionForm(page, 'MotherDuck');
+    });
+
+    await test.step('Show MotherDuck credentials without server fields', async () => {
+      await expect(page.locator(String.raw`#root\/token`)).toBeVisible();
+      await expect(page.locator(String.raw`#root\/database`)).toBeVisible();
+      await expect(page.locator(String.raw`#root\/hostPort`)).toHaveCount(0);
+      await expect(page.locator(String.raw`#root\/username`)).toHaveCount(0);
+    });
   });
 
   test('should align nested sample data storage config fields without overlap', async ({

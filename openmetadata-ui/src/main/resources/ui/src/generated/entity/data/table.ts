@@ -1381,6 +1381,7 @@ export enum DatabaseServiceType {
     MicrosoftAccess = "MicrosoftAccess",
     MicrosoftFabric = "MicrosoftFabric",
     MongoDB = "MongoDB",
+    MotherDuck = "MotherDuck",
     Mssql = "Mssql",
     Mysql = "Mysql",
     Oracle = "Oracle",

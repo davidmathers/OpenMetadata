@@ -354,6 +354,7 @@ plugins: Dict[str, Set[str]] = {  # noqa: UP006
     "mongo": {VERSIONS["mongo"], VERSIONS["pandas"], VERSIONS["numpy"]},
     "cassandra": {VERSIONS["cassandra"]},
     "couchbase": {"couchbase~=4.1"},
+    "motherduck": {"duckdb==1.5.5", "duckdb-engine==0.17.0"},
     "mssql": {
         # 1.0+ moved internal `tds.skipall` calls to `tds_base.skipall`, matching
         # the python-tds 1.x layout. 0.3.x raises AttributeError on every

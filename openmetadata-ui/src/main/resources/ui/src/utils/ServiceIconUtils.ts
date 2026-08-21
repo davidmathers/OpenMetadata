@@ -34,6 +34,7 @@ import impala from '../assets/img/service-icon-impala.webp';
 import iomete from '../assets/img/service-icon-iomete.webp';
 import mariadb from '../assets/img/service-icon-mariadb.webp';
 import mongodb from '../assets/img/service-icon-mongodb.webp';
+import motherduck from '../assets/img/service-icon-motherduck.svg';
 import mssql from '../assets/img/service-icon-mssql.webp';
 import oracle from '../assets/img/service-icon-oracle.webp';
 import pinot from '../assets/img/service-icon-pinot.webp';
@@ -173,6 +174,7 @@ const SERVICE_ICON_LOADERS: Record<string, string> = {
   datalake: datalake,
   exasol: exasol,
   mongodb: mongodb,
+  motherduck: motherduck,
   cassandra: cassandra,
   couchbase: couchbase,
   greenplum: greenplum,
