@@ -149,6 +149,13 @@ def test_catalog_queries_scope_metadata_to_current_database(tmp_path):
     assert [column["name"] for column in columns] == ["event_id", "event_name"]
 
 
+def test_database_discovery_excludes_motherduck_internal_catalog():
+    source = MotherDuckSource.__new__(MotherDuckSource)
+    source._execute_database_query = MagicMock(return_value=iter(["engineering", "md_information_schema"]))
+
+    assert list(source.get_database_names_raw()) == ["engineering"]
+
+
 def test_array_columns_include_element_type(tmp_path):
     database_path = tmp_path / "arrays.duckdb"
     engine = create_engine(f"duckdb:///{database_path}")

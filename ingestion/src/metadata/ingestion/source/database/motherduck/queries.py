@@ -14,7 +14,7 @@ MOTHERDUCK_GET_DATABASES = """
 SELECT database_name
 FROM duckdb_databases()
 WHERE NOT internal
-  AND database_name NOT IN ('memory', 'system', 'temp')
+  AND database_name NOT IN ('memory', 'system', 'temp', 'md_information_schema')
 ORDER BY database_name
 """
 

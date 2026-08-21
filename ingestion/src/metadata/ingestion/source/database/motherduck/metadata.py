@@ -48,6 +48,7 @@ from metadata.utils.logger import ingestion_logger
 logger = ingestion_logger()
 
 _DUCKDB_ARRAY_SUFFIX = re.compile(r"\[(?:\d+)?\]$")
+_MOTHERDUCK_SYSTEM_DATABASES = {"md_information_schema"}
 
 
 def _parse_duckdb_array_type(data_type: str) -> Optional[str]:  # noqa: UP045
@@ -95,7 +96,11 @@ class MotherDuckSource(CommonDbSourceService, MultiDBSource):
         return self.service_connection.database
 
     def get_database_names_raw(self) -> Iterable[str]:
-        yield from self._execute_database_query(MOTHERDUCK_GET_DATABASES)
+        yield from (
+            database_name
+            for database_name in self._execute_database_query(MOTHERDUCK_GET_DATABASES)
+            if database_name not in _MOTHERDUCK_SYSTEM_DATABASES
+        )
 
     def get_database_names(self) -> Iterable[str]:
         configured_database = self.get_configured_database()
