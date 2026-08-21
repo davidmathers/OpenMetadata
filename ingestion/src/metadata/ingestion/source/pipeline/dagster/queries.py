@@ -132,6 +132,60 @@ query AssetsQuery($repositorySelector: RepositorySelector!) {
             }
           }
         }
+        definitionMetadataEntries: metadataEntries {
+          __typename
+          label
+          ... on TextMetadataEntry {
+            text
+          }
+          ... on PathMetadataEntry {
+            path
+          }
+          ... on JsonMetadataEntry {
+            jsonString
+          }
+          ... on UrlMetadataEntry {
+            url
+          }
+          ... on MarkdownMetadataEntry {
+            mdStr
+          }
+          ... on FloatMetadataEntry {
+            floatValue
+          }
+          ... on IntMetadataEntry {
+            intRepr
+          }
+          ... on BoolMetadataEntry {
+            boolValue
+          }
+          ... on TimestampMetadataEntry {
+            timestamp
+          }
+        }
+        assetChecksOrError {
+          __typename
+          ... on AssetChecks {
+            checks {
+              name
+              assetKey {
+                path
+              }
+              description
+              jobNames
+              blocking
+            }
+          }
+          ... on AssetCheckNeedsMigrationError {
+            message
+          }
+          ... on AssetCheckNeedsAgentUpgradeError {
+            message
+          }
+          ... on AssetCheckNeedsUserCodeUpgrade {
+            message
+          }
+        }
         assetMaterializations(limit: 1) {
           runId
           timestamp
@@ -152,6 +206,69 @@ query AssetsQuery($repositorySelector: RepositorySelector!) {
         jobs {
           name
           id
+        }
+      }
+    }
+  }
+}
+"""
+
+ASSET_CHECK_EXECUTIONS_QUERY = """
+query AssetCheckExecutions(
+  $assetKey: AssetKeyInput!
+  $checkName: String!
+  $limit: Int!
+) {
+  assetCheckExecutions(
+    assetKey: $assetKey
+    checkName: $checkName
+    limit: $limit
+  ) {
+    id
+    runId
+    status
+    timestamp
+    partition
+    stepKey
+    evaluation {
+      timestamp
+      checkName
+      assetKey {
+        path
+      }
+      success
+      severity
+      description
+      partition
+      metadataEntries {
+        __typename
+        label
+        ... on TextMetadataEntry {
+          text
+        }
+        ... on PathMetadataEntry {
+          path
+        }
+        ... on JsonMetadataEntry {
+          jsonString
+        }
+        ... on UrlMetadataEntry {
+          url
+        }
+        ... on MarkdownMetadataEntry {
+          mdStr
+        }
+        ... on FloatMetadataEntry {
+          floatValue
+        }
+        ... on IntMetadataEntry {
+          intRepr
+        }
+        ... on BoolMetadataEntry {
+          boolValue
+        }
+        ... on TimestampMetadataEntry {
+          timestamp
         }
       }
     }
