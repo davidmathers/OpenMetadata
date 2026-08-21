@@ -13,10 +13,15 @@ Dagster source to extract metadata from OM UI
 """
 
 import traceback
+from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional  # noqa: UP035
 
 from metadata.generated.schema.api.data.createPipeline import CreatePipelineRequest
 from metadata.generated.schema.api.lineage.addLineage import AddLineageRequest
+from metadata.generated.schema.api.tests.createTestCase import CreateTestCaseRequest
+from metadata.generated.schema.api.tests.createTestDefinition import (
+    CreateTestDefinitionRequest,
+)
 from metadata.generated.schema.entity.data.pipeline import (
     Pipeline,
     PipelineStatus,
@@ -34,7 +39,18 @@ from metadata.generated.schema.entity.services.ingestionPipelines.status import 
 from metadata.generated.schema.metadataIngestion.workflow import (
     Source as WorkflowSource,
 )
+from metadata.generated.schema.tests.basic import (
+    TestCaseResult,
+    TestCaseStatus,
+    TestResultValue,
+)
+from metadata.generated.schema.tests.testCase import TestCase
+from metadata.generated.schema.tests.testDefinition import (
+    EntityType,
+    TestPlatform,
+)
 from metadata.generated.schema.type.basic import (
+    EntityLink,
     EntityName,
     FullyQualifiedEntityName,
     Markdown,
@@ -49,15 +65,22 @@ from metadata.ingestion.api.step import WorkflowFatalError
 from metadata.ingestion.api.steps import InvalidSourceException
 from metadata.ingestion.models.ometa_classification import OMetaTagAndClassification
 from metadata.ingestion.models.pipeline_status import OMetaPipelineStatus
+from metadata.ingestion.models.tests_data import OMetaTestCaseResultsSample
+from metadata.ingestion.models.topology import NodeStage, TopologyContextManager
 from metadata.ingestion.ometa.ometa_api import OpenMetadata
 from metadata.ingestion.source.pipeline.dagster.models import (
+    AssetCheckExecution,
+    DagsterAssetCheck,
     DagsterAssetNode,
     DagsterPipeline,
+    OpenMetadataAssetCheckMapping,
+    OpenMetadataAssetMetadata,
     RunStepStats,
     SolidHandle,
     TableResolutionResult,
 )
 from metadata.ingestion.source.pipeline.pipeline_service import PipelineServiceSource
+from metadata.utils import entity_link as entity_link_utils
 from metadata.utils import fqn
 from metadata.utils.filters import filter_by_pipeline
 from metadata.utils.helpers import clean_uri
@@ -73,6 +96,17 @@ STATUS_MAP = {
 }
 
 DAGSTER_TAG_CATEGORY = "DagsterTags"
+OPENMETADATA_METADATA_LABEL = "openmetadata"
+
+
+@dataclass(frozen=True)
+class DagsterAssetCheckProjection:
+    """OpenMetadata entities and results projected from one Dagster asset check."""
+
+    test_definition: CreateTestDefinitionRequest
+    test_case: CreateTestCaseRequest
+    test_case_fqn: str
+    results: tuple[TestCaseResult, ...]
 
 
 class DagsterSource(PipelineServiceSource):
@@ -80,6 +114,28 @@ class DagsterSource(PipelineServiceSource):
     Implements the necessary methods ot extract
     Pipeline metadata from Dagster's metadata db
     """
+
+    topology = PipelineServiceSource.topology.model_copy(deep=True)
+    topology.pipeline.stages.extend(
+        [
+            NodeStage(
+                type_=CreateTestDefinitionRequest,
+                processor="yield_asset_check_definitions",
+                nullable=True,
+            ),
+            NodeStage(
+                type_=CreateTestCaseRequest,
+                processor="yield_asset_check_cases",
+                nullable=True,
+            ),
+            NodeStage(
+                type_=OMetaTestCaseResultsSample,
+                processor="yield_asset_check_results",
+                nullable=True,
+            ),
+        ]
+    )
+    context = TopologyContextManager(topology)
 
     @classmethod
     def create(cls, config_dict, metadata: OpenMetadata, pipeline_name: Optional[str] = None):  # noqa: UP045
@@ -92,6 +148,7 @@ class DagsterSource(PipelineServiceSource):
     def __init__(self, config: WorkflowSource, metadata: OpenMetadata):
         super().__init__(config, metadata)
         self.strip_asset_key_prefix_length = self.service_connection.stripAssetKeyPrefixLength or 0
+        self._asset_check_projection_cache: dict[tuple[str, str, str], tuple[DagsterAssetCheckProjection, ...]] = {}
 
     def _get_downstream_tasks(self, job: SolidHandle) -> Optional[List[str]]:  # noqa: UP006, UP045
         """Method to get downstream tasks"""
@@ -315,6 +372,252 @@ class DagsterSource(PipelineServiceSource):
                     stackTrace=traceback.format_exc(),
                 )
             )
+
+    def yield_asset_check_definitions(
+        self, pipeline_details: DagsterPipeline
+    ) -> Iterable[Either[CreateTestDefinitionRequest]]:
+        """Yield unique OpenMetadata definitions required by Dagster asset checks."""
+        seen = set()
+        for projection in self._get_asset_check_projections(pipeline_details):
+            definition_name = projection.test_definition.name.root
+            if definition_name in seen:
+                continue
+            seen.add(definition_name)
+            yield Either(right=projection.test_definition)
+
+    def yield_asset_check_cases(self, pipeline_details: DagsterPipeline) -> Iterable[Either[CreateTestCaseRequest]]:
+        """Reconcile Dagster asset-check definitions into OpenMetadata test cases."""
+        for projection in self._get_asset_check_projections(pipeline_details):
+            yield Either(right=projection.test_case)
+
+    def yield_asset_check_results(
+        self, pipeline_details: DagsterPipeline
+    ) -> Iterable[Either[OMetaTestCaseResultsSample]]:
+        """Publish new Dagster asset-check evaluations to OpenMetadata."""
+        for projection in self._get_asset_check_projections(pipeline_details):
+            if not projection.results:
+                continue
+
+            timestamps = [result.timestamp.root for result in projection.results]
+            existing_results = self.metadata.get_test_case_results(
+                test_case_fqn=projection.test_case_fqn,
+                start_ts=min(timestamps),
+                end_ts=max(timestamps),
+            )
+            existing_timestamps = {result.timestamp.root for result in existing_results or []}
+            for result in projection.results:
+                if result.timestamp.root in existing_timestamps:
+                    continue
+                yield Either(
+                    right=OMetaTestCaseResultsSample(
+                        test_case_results=result,
+                        test_case_name=projection.test_case_fqn,
+                    )
+                )
+
+    def _get_asset_check_projections(
+        self, pipeline_details: DagsterPipeline
+    ) -> tuple[DagsterAssetCheckProjection, ...]:
+        cache_key = (
+            self.context.get().repository_location,
+            self.context.get().repository_name,
+            pipeline_details.name,
+        )
+        cached = self._asset_check_projection_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        assets = self.client.get_assets(
+            repository_name=self.context.get().repository_name,
+            repository_location=self.context.get().repository_location,
+        )
+        projections = []
+        for asset in assets or []:
+            mapping = self._get_asset_check_mapping(asset)
+            if not mapping or not mapping.enabled:
+                continue
+
+            checks_result = asset.assetChecksOrError
+            if not checks_result or checks_result.typename != "AssetChecks":
+                if checks_result and checks_result.message:
+                    logger.warning(
+                        f"Cannot ingest asset checks for {asset.assetKey.to_string()}: {checks_result.message}"
+                    )
+                continue
+
+            for check in checks_result.checks or []:
+                if pipeline_details.name not in check.jobNames:
+                    continue
+                check_mapping = mapping.for_check(check.name)
+                if not check_mapping.enabled:
+                    continue
+                projection = self._build_asset_check_projection(
+                    asset=asset,
+                    check=check,
+                    mapping=check_mapping,
+                )
+                if projection:
+                    projections.append(projection)
+
+        cached_projections = tuple(projections)
+        self._asset_check_projection_cache[cache_key] = cached_projections
+        return cached_projections
+
+    def _get_asset_check_mapping(self, asset: DagsterAssetNode) -> Optional[OpenMetadataAssetCheckMapping]:  # noqa: UP045
+        for entry in asset.definitionMetadataEntries or []:
+            if entry.label != OPENMETADATA_METADATA_LABEL:
+                continue
+            value = entry.value()
+            if not isinstance(value, dict):
+                logger.warning(
+                    f"Dagster asset {asset.assetKey.to_string()} has non-object {OPENMETADATA_METADATA_LABEL} metadata"
+                )
+                return None
+            try:
+                return OpenMetadataAssetMetadata.model_validate(value).asset_checks
+            except Exception as exc:
+                logger.warning(f"Invalid OpenMetadata asset-check mapping for {asset.assetKey.to_string()}: {exc}")
+                return None
+        return None
+
+    def _build_asset_check_projection(
+        self,
+        asset: DagsterAssetNode,
+        check: DagsterAssetCheck,
+        mapping: OpenMetadataAssetCheckMapping,
+    ) -> Optional[DagsterAssetCheckProjection]:  # noqa: UP045
+        table = self.metadata.get_by_name(
+            entity=Table,
+            fqn=mapping.entity_fqn,
+            fields=["columns"],
+        )
+        if not table:
+            logger.warning(
+                f"Cannot ingest Dagster asset check {asset.assetKey.to_string()}:{check.name}: "
+                f"OpenMetadata table {mapping.entity_fqn} was not found"
+            )
+            return None
+
+        if mapping.column_name and not any(column.name.root == mapping.column_name for column in table.columns or []):
+            logger.warning(
+                f"Cannot ingest Dagster asset check {asset.assetKey.to_string()}:{check.name}: "
+                f"column {mapping.column_name} was not found on {mapping.entity_fqn}"
+            )
+            return None
+
+        table_fqn = table.fullyQualifiedName.root
+        table_fqn_parts = fqn.split(table_fqn)
+        if len(table_fqn_parts) != 4:
+            logger.warning(f"Unexpected OpenMetadata table FQN for Dagster asset checks: {table_fqn}")
+            return None
+
+        entity_type = EntityType.COLUMN if mapping.column_name else EntityType.TABLE
+        definition_name = f"dagsterAssetCheck{entity_type.value.title()}{mapping.quality_dimension.value}"
+        test_case_fqn = fqn.build(
+            metadata=self.metadata,
+            entity_type=TestCase,
+            service_name=table_fqn_parts[0],
+            database_name=table_fqn_parts[1],
+            schema_name=table_fqn_parts[2],
+            table_name=table_fqn_parts[3],
+            column_name=mapping.column_name,
+            test_case_name=check.name,
+        )
+        executions = self.client.get_asset_check_executions(
+            asset_key=check.assetKey,
+            check_name=check.name,
+            limit=mapping.history_limit,
+        )
+        results = tuple(
+            result
+            for execution in sorted(
+                executions or [],
+                key=lambda execution: execution.timestamp,
+            )
+            if (result := self._build_asset_check_result(asset, check, execution))
+        )
+
+        return DagsterAssetCheckProjection(
+            test_definition=CreateTestDefinitionRequest(
+                name=definition_name,
+                displayName=f"Dagster {entity_type.value.title()} Asset Check",
+                description=(
+                    "A data-quality check executed by Dagster and projected into OpenMetadata without re-execution."
+                ),
+                entityType=entity_type,
+                testPlatforms=[TestPlatform.Other],
+                dataQualityDimension=mapping.quality_dimension,
+            ),
+            test_case=CreateTestCaseRequest(
+                name=check.name,
+                displayName=check.name,
+                description=check.description,
+                testDefinition=FullyQualifiedEntityName(definition_name),
+                entityLink=EntityLink(
+                    entity_link_utils.get_entity_link(
+                        Table,
+                        table_fqn,
+                        column_name=mapping.column_name,
+                    )
+                ),
+            ),
+            test_case_fqn=test_case_fqn,
+            results=results,
+        )
+
+    def _build_asset_check_result(
+        self,
+        asset: DagsterAssetNode,
+        check: DagsterAssetCheck,
+        execution: AssetCheckExecution,
+    ) -> Optional[TestCaseResult]:  # noqa: UP045
+        if execution.status in {"IN_PROGRESS", "SKIPPED"}:
+            return None
+
+        evaluation = execution.evaluation
+        if execution.status == "EXECUTION_FAILED":
+            status = TestCaseStatus.Aborted
+            timestamp = execution.timestamp
+            message = f'Dagster asset check "{check.name}" did not complete'
+        elif execution.status in {"SUCCEEDED", "FAILED"} and evaluation:
+            status = TestCaseStatus.Success if evaluation.success else TestCaseStatus.Failed
+            timestamp = evaluation.timestamp
+            message = evaluation.description or (
+                f'Dagster asset check "{check.name}" {"passed" if evaluation.success else "failed"}'
+            )
+        else:
+            logger.warning(
+                f"Ignoring unsupported Dagster asset-check execution state "
+                f"{execution.status} for {asset.assetKey.to_string()}:{check.name}"
+            )
+            return None
+
+        values = {
+            "dagsterAssetKey": asset.assetKey.to_string(),
+            "dagsterRunId": execution.runId,
+            "dagsterExecutionId": execution.id,
+            "dagsterBlocking": str(check.blocking).lower(),
+        }
+        if execution.stepKey:
+            values["dagsterStepKey"] = execution.stepKey
+        partition = evaluation.partition if evaluation else execution.partition
+        if partition:
+            values["dagsterPartitionKey"] = partition
+        if evaluation:
+            values["dagsterSeverity"] = evaluation.severity
+            for entry in evaluation.metadataEntries:
+                if entry.label == OPENMETADATA_METADATA_LABEL:
+                    continue
+                value = entry.result_value()
+                if value is not None:
+                    values[entry.label] = value
+
+        return TestCaseResult(
+            timestamp=int(timestamp * 1000),
+            testCaseStatus=status,
+            result=message,
+            testResultValue=[TestResultValue(name=name, value=value) for name, value in values.items()],
+        )
 
     def get_pipelines_list(self) -> Iterable[DagsterPipeline]:
         """Get List of all pipelines"""
