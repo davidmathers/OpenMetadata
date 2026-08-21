@@ -25,6 +25,7 @@ from metadata.ingestion.source.database.motherduck.connection import (
     MotherDuckChecks,
     MotherDuckConnection,
 )
+from metadata.ingestion.source.database.motherduck.metadata import MotherDuckSource
 from metadata.ingestion.source.database.motherduck.queries import (
     MOTHERDUCK_GET_DATABASES,
     MOTHERDUCK_GET_SCHEMAS,
@@ -146,6 +147,37 @@ def test_catalog_queries_scope_metadata_to_current_database(tmp_path):
     assert inspector.get_table_names(schema="analytics") == ["events"]
     assert inspector.get_view_names(schema="analytics") == ["event_names"]
     assert [column["name"] for column in columns] == ["event_id", "event_name"]
+
+
+def test_array_columns_include_element_type(tmp_path):
+    database_path = tmp_path / "arrays.duckdb"
+    engine = create_engine(f"duckdb:///{database_path}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA analytics"))
+        connection.execute(
+            text("CREATE TABLE analytics.measurements (powers_dbm DOUBLE[], labels VARCHAR[], samples INTEGER[3])")
+        )
+
+    source = MotherDuckSource.__new__(MotherDuckSource)
+    source.engine = engine
+    columns = source._get_columns_internal(
+        schema_name="analytics",
+        table_name="measurements",
+        db_name="arrays",
+        inspector=inspect(engine),
+    )
+    processed_types = {column["name"]: source._process_col_type(column, "analytics")[2] for column in columns}
+
+    engine.dispose()
+
+    assert processed_types["powers_dbm"] == {
+        "name": "powers_dbm",
+        "dataType": "ARRAY",
+        "arrayDataType": "DOUBLE",
+        "dataTypeDisplay": "array<double>",
+    }
+    assert processed_types["labels"]["arrayDataType"] == "VARCHAR"
+    assert processed_types["samples"]["arrayDataType"] == "INT"
 
 
 def test_connection_capabilities_are_enabled():

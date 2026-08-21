@@ -45,3 +45,12 @@ WHERE database_name = current_database()
   AND NOT temporary
 ORDER BY view_name
 """
+
+MOTHERDUCK_GET_COLUMN_TYPES = """
+SELECT column_name, data_type
+FROM duckdb_columns()
+WHERE database_name = current_database()
+  AND schema_name = :schema_name
+  AND table_name = :table_name
+ORDER BY column_index
+"""
