@@ -41,6 +41,7 @@
         "DynamoDB",
         "SingleStore",
         "SQLite",
+        "MotherDuck",
         "DeltaLake",
         "Salesforce",
         "PinotDB",
@@ -153,6 +154,9 @@
         },
         {
           "name": "SQLite"
+        },
+        {
+          "name": "MotherDuck"
         },
         {
           "name": "DeltaLake"
@@ -318,6 +322,9 @@
             },
             {
               "$ref": "./connections/database/sqliteConnection.json"
+            },
+            {
+              "$ref": "./connections/database/motherDuckConnection.json"
             },
             {
               "$ref": "./connections/database/oracleConnection.json"

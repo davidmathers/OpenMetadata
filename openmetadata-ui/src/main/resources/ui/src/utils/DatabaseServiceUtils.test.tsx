@@ -16,6 +16,7 @@ import { OperationPermission } from '../context/PermissionProvider/PermissionPro
 import { DatabaseServiceType } from '../generated/entity/services/databaseService';
 import bigQueryConnection from '../jsons/connectionSchemas/connections/database/bigQueryConnection.json';
 import customDatabaseConnection from '../jsons/connectionSchemas/connections/database/customDatabaseConnection.json';
+import motherDuckConnection from '../jsons/connectionSchemas/connections/database/motherDuckConnection.json';
 import mysqlConnection from '../jsons/connectionSchemas/connections/database/mysqlConnection.json';
 import postgresConnection from '../jsons/connectionSchemas/connections/database/postgresConnection.json';
 import snowflakeConnection from '../jsons/connectionSchemas/connections/database/snowflakeConnection.json';
@@ -152,6 +153,15 @@ describe('getDatabaseConfig', () => {
     expect(result).toHaveProperty('schema');
     expect(result).toHaveProperty('uiSchema');
     expect(result.schema).toStrictEqual(postgresConnection);
+    expect(result.uiSchema).toEqual(COMMON_UI_SCHEMA);
+  });
+
+  it('should return correct schema and UI schema for MotherDuck', async () => {
+    const result = await getDatabaseConfig(DatabaseServiceType.MotherDuck);
+
+    expect(result).toHaveProperty('schema');
+    expect(result).toHaveProperty('uiSchema');
+    expect(result.schema).toStrictEqual(motherDuckConnection);
     expect(result.uiSchema).toEqual(COMMON_UI_SCHEMA);
   });
 

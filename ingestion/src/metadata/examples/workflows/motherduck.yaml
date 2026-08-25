@@ -1,0 +1,23 @@
+source:
+  type: motherduck
+  serviceName: motherduck
+  serviceConnection:
+    config:
+      type: MotherDuck
+      token: <motherduck-access-token>
+      # Optional. Omit to discover every database visible to the token.
+      database: <database-name>
+      connectionArguments: {}
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      includeViews: true
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: <openmetadata-jwt-token>

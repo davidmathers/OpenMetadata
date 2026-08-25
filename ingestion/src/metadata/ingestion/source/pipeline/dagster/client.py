@@ -23,6 +23,9 @@ from metadata.generated.schema.entity.services.connections.pipeline.dagsterConne
     DagsterConnection,
 )
 from metadata.ingestion.source.pipeline.dagster.models import (
+    AssetCheckExecution,
+    AssetCheckExecutionsResponse,
+    AssetKey,
     AssetsQueryResponse,
     DagsterAssetNode,
     DagsterPipeline,
@@ -33,6 +36,7 @@ from metadata.ingestion.source.pipeline.dagster.models import (
     RepositoriesOrErrorModel,
 )
 from metadata.ingestion.source.pipeline.dagster.queries import (
+    ASSET_CHECK_EXECUTIONS_QUERY,
     DAGSTER_ASSETS_QUERY,
     DAGSTER_PIPELINE_DETAILS_GRAPHQL,
     GRAPHQL_QUERY_FOR_JOBS,
@@ -158,4 +162,26 @@ class DagsterClient:
         except Exception as exc:
             logger.debug(traceback.format_exc())
             logger.error(f"Error fetching assets: {exc}")
+            return None
+
+    def get_asset_check_executions(
+        self,
+        asset_key: AssetKey,
+        check_name: str,
+        limit: int,
+    ) -> Optional[List[AssetCheckExecution]]:  # noqa: UP006, UP045
+        """Retrieve recent executions for one Dagster asset check."""
+        try:
+            result = self.client._execute(  # pylint: disable=protected-access
+                query=ASSET_CHECK_EXECUTIONS_QUERY,
+                variables={
+                    "assetKey": {"path": asset_key.path},
+                    "checkName": check_name,
+                    "limit": limit,
+                },
+            )
+            return AssetCheckExecutionsResponse.model_validate(result).assetCheckExecutions
+        except Exception as exc:
+            logger.debug(traceback.format_exc())
+            logger.error(f"Error fetching executions for asset check {asset_key.to_string()}:{check_name}: {exc}")
             return None
