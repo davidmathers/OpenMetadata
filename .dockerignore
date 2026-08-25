@@ -1,2 +1,8 @@
 docker/development/docker-volume
 docker/docker-compose-quickstart/docker-volume
+.git
+.venv
+**/node_modules
+**/target
+!openmetadata-dist/target/
+!openmetadata-dist/target/openmetadata-*.tar.gz
