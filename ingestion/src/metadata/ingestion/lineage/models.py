@@ -62,6 +62,9 @@ from metadata.generated.schema.entity.services.connections.database.mariaDBConne
 from metadata.generated.schema.entity.services.connections.database.microsoftFabricConnection import (
     MicrosoftFabricType,
 )
+from metadata.generated.schema.entity.services.connections.database.motherDuckConnection import (
+    MotherDuckType,
+)
 from metadata.generated.schema.entity.services.connections.database.mssqlConnection import (
     MssqlType,
 )
@@ -152,6 +155,7 @@ MAP_CONNECTION_TYPE_DIALECT: Dict[str, Dialect] = {  # noqa: UP006
     str(SnowflakeType.Snowflake.value): Dialect.SNOWFLAKE,
     str(DeltaLakeType.DeltaLake.value): Dialect.SPARKSQL,
     str(SQLiteType.SQLite.value): Dialect.SQLITE,
+    str(MotherDuckType.MotherDuck.value): Dialect.DUCKDB,
     str(MssqlType.Mssql.value): Dialect.TSQL,
     str(AzureSQLType.AzureSQL.value): Dialect.TSQL,
     str(TeradataType.Teradata.value): Dialect.TERADATA,

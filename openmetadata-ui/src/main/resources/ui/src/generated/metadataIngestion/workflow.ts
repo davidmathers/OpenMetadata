@@ -226,6 +226,8 @@ export interface ServiceConnection {
  *
  * SQLite Database Connection Config
  *
+ * MotherDuck Database Connection Config
+ *
  * Oracle Database Connection Config
  *
  * Postgres Database Connection Config
@@ -472,6 +474,8 @@ export interface Connection {
      * Hex API token for authentication. Can be personal or workspace token.
      *
      * API token to authenticate with Omni.
+     *
+     * MotherDuck access token used to authenticate the ingestion connection.
      *
      * To Connect to Dagster Cloud
      *
@@ -1235,6 +1239,8 @@ export interface Connection {
     /**
      * Regex to only include/exclude databases that matches the pattern.
      *
+     * Regex to include or exclude MotherDuck databases.
+     *
      * Regex to only include/exclude namespaces (sources/spaces) that match the pattern. In
      * Dremio Cloud, namespaces are mapped as databases.
      */
@@ -1246,6 +1252,8 @@ export interface Connection {
     sampleDataStorageConfig?: SampleDataStorageConfig;
     /**
      * Regex to only include/exclude schemas that matches the pattern.
+     *
+     * Regex to include or exclude schemas.
      *
      * Regex to only include/exclude schemas that matches the pattern. System schemas
      * (information_schema, _statistics_, sys) are excluded by default.
@@ -1263,6 +1271,8 @@ export interface Connection {
     schemaFilterPattern?: FilterPattern;
     /**
      * SQLAlchemy driver scheme options.
+     *
+     * SQLAlchemy driver scheme used to connect through DuckDB.
      *
      * Mongo connection scheme options.
      *
@@ -1286,6 +1296,8 @@ export interface Connection {
     supportsUsageExtraction?: boolean;
     /**
      * Regex to only include/exclude tables that matches the pattern.
+     *
+     * Regex to include or exclude tables and views.
      *
      * Regex to include/exclude FHIR resource types
      *
@@ -1362,6 +1374,9 @@ export interface Connection {
      * Database of the data source. This is optional parameter, if you would like to restrict
      * the metadata reading to a single database. When left blank, OpenMetadata Ingestion
      * attempts to scan all the databases.
+     *
+     * Optional MotherDuck database to ingest. When omitted, OpenMetadata discovers and ingests
+     * all databases visible to the token.
      *
      * Initial Redshift database to connect to. If you want to ingest all databases, set
      * ingestAllDatabases to true.
@@ -2510,6 +2525,12 @@ export interface UsernamePasswordAuthentication {
  * Regex to exclude or include data models (Omni topics) that matches the pattern.
  *
  * Regex to only fetch containers that matches the pattern.
+ *
+ * Regex to include or exclude MotherDuck databases.
+ *
+ * Regex to include or exclude schemas.
+ *
+ * Regex to include or exclude tables and views.
  *
  * Regex to only include/exclude schemas that matches the pattern. System schemas
  * (information_schema, _statistics_, sys) are excluded by default.
@@ -4891,6 +4912,8 @@ export enum RunMode {
 /**
  * SQLAlchemy driver scheme options.
  *
+ * SQLAlchemy driver scheme used to connect through DuckDB.
+ *
  * Mongo connection scheme options.
  *
  * Couchbase driver scheme options.
@@ -4906,6 +4929,7 @@ export enum AirflowConnectionScheme {
     Db2IBMDB = "db2+ibm_db",
     Doris = "doris",
     Druid = "druid",
+    Duckdb = "duckdb",
     ExaWebsocket = "exa+websocket",
     Hana = "hana",
     Hive = "hive",
@@ -5336,6 +5360,7 @@ export enum AirflowConnectionType {
     Mlflow = "Mlflow",
     Mode = "Mode",
     MongoDB = "MongoDB",
+    MotherDuck = "MotherDuck",
     Mssql = "Mssql",
     Mulesoft = "Mulesoft",
     Mysql = "Mysql",

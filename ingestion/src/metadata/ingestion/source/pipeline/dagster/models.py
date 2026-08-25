@@ -9,15 +9,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""
-Dagster Source Model module
-"""
+"""Dagster source models."""
 
+import json
 from typing import List, Optional  # noqa: UP035
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from metadata.generated.schema.entity.data.table import Table
+from metadata.generated.schema.tests.testDefinition import DataQualityDimensions
 
 # Models for get_task_runs
 
@@ -152,6 +152,46 @@ class MetadataEntry(BaseModel):
     text: Optional[str] = None  # noqa: UP045
     path: Optional[str] = None  # noqa: UP045
     jsonString: Optional[str] = None  # noqa: N815, UP045
+    url: Optional[str] = None  # noqa: UP045
+    mdStr: Optional[str] = None  # noqa: N815, UP045
+    floatValue: Optional[float] = None  # noqa: N815, UP045
+    intRepr: Optional[str] = None  # noqa: N815, UP045
+    boolValue: Optional[bool] = None  # noqa: N815, UP045
+    timestamp: Optional[float] = None  # noqa: UP045
+
+    def value(self) -> Optional[object]:  # noqa: UP045
+        """Return the represented Dagster metadata value."""
+        if self.jsonString is not None:
+            try:
+                return json.loads(self.jsonString)
+            except json.JSONDecodeError:
+                return self.jsonString
+
+        for value in (
+            self.text,
+            self.path,
+            self.url,
+            self.mdStr,
+            self.floatValue,
+            self.intRepr,
+            self.boolValue,
+            self.timestamp,
+        ):
+            if value is not None:
+                return value
+
+        return None
+
+    def result_value(self) -> Optional[str]:  # noqa: UP045
+        """Serialize a metadata value for an OpenMetadata test result."""
+        value = self.value()
+        if value is None:
+            return None
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, separators=(",", ":"), sort_keys=True)
+        if isinstance(value, bool):
+            return str(value).lower()
+        return str(value)
 
 
 class AssetMaterialization(BaseModel):
@@ -172,8 +212,107 @@ class DagsterAssetNode(BaseModel):
     computeKind: Optional[str] = None  # noqa: N815, UP045
     opNames: Optional[List[str]] = None  # noqa: N815, UP006, UP045
     dependencies: Optional[List[AssetDependency]] = None  # noqa: UP006, UP045
+    definitionMetadataEntries: Optional[List[MetadataEntry]] = None  # noqa: N815, UP006, UP045
     assetMaterializations: Optional[List[AssetMaterialization]] = None  # noqa: N815, UP006, UP045
+    assetChecksOrError: Optional["AssetChecksOrError"] = None  # noqa: N815
     jobs: Optional[List[JobReference]] = None  # noqa: UP006, UP045
+
+
+class DagsterAssetCheck(BaseModel):
+    """A Dagster asset-check definition."""
+
+    name: str
+    assetKey: AssetKey  # noqa: N815
+    description: Optional[str] = None  # noqa: UP045
+    jobNames: list[str] = []  # noqa: N815
+    blocking: bool = False
+
+
+class AssetChecksOrError(BaseModel):
+    """Asset-check query result or Dagster compatibility error."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    typename: str = Field(alias="__typename")
+    checks: Optional[List[DagsterAssetCheck]] = None  # noqa: UP006, UP045
+    message: Optional[str] = None  # noqa: UP045
+
+
+class AssetCheckEvaluation(BaseModel):
+    """Result emitted by a completed Dagster asset check."""
+
+    timestamp: float
+    checkName: str  # noqa: N815
+    assetKey: AssetKey  # noqa: N815
+    success: bool
+    severity: str
+    description: Optional[str] = None  # noqa: UP045
+    partition: Optional[str] = None  # noqa: UP045
+    metadataEntries: list[MetadataEntry] = []  # noqa: N815
+
+
+class AssetCheckExecution(BaseModel):
+    """One Dagster asset-check execution."""
+
+    id: str
+    runId: str  # noqa: N815
+    status: str
+    timestamp: float
+    partition: Optional[str] = None  # noqa: UP045
+    stepKey: Optional[str] = None  # noqa: N815, UP045
+    evaluation: Optional[AssetCheckEvaluation] = None  # noqa: UP045
+
+
+class AssetCheckExecutionsResponse(BaseModel):
+    """GraphQL response containing asset-check executions."""
+
+    assetCheckExecutions: list[AssetCheckExecution]  # noqa: N815
+
+
+class OpenMetadataAssetCheckOverride(BaseModel):
+    """Optional target overrides for one named Dagster asset check."""
+
+    enabled: Optional[bool] = None  # noqa: UP045
+    entity_fqn: Optional[str] = None  # noqa: UP045
+    column_name: Optional[str] = None  # noqa: UP045
+    quality_dimension: Optional[DataQualityDimensions] = None  # noqa: UP045
+    history_limit: Optional[int] = Field(default=None, ge=1, le=1000)  # noqa: UP045
+
+
+class OpenMetadataAssetCheckMapping(BaseModel):
+    """Opt-in mapping stored in a Dagster asset's static metadata."""
+
+    enabled: bool = False
+    entity_fqn: str
+    column_name: Optional[str] = None  # noqa: UP045
+    quality_dimension: DataQualityDimensions = DataQualityDimensions.NoDimension
+    history_limit: int = Field(default=100, ge=1, le=1000)
+    checks: dict[str, OpenMetadataAssetCheckOverride] = {}
+
+    def for_check(self, check_name: str) -> "OpenMetadataAssetCheckMapping":
+        """Apply an optional named-check override to the asset defaults."""
+        override = self.checks.get(check_name)
+        if not override:
+            return self
+
+        updates = {
+            field: value
+            for field in (
+                "enabled",
+                "entity_fqn",
+                "column_name",
+                "quality_dimension",
+                "history_limit",
+            )
+            if (value := getattr(override, field)) is not None
+        }
+        return self.model_copy(update=updates)
+
+
+class OpenMetadataAssetMetadata(BaseModel):
+    """OpenMetadata settings stored under the ``openmetadata`` metadata key."""
+
+    asset_checks: Optional[OpenMetadataAssetCheckMapping] = None  # noqa: UP045
 
 
 class AssetRepository(BaseModel):

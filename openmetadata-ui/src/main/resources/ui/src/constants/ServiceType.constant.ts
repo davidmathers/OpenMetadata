@@ -180,6 +180,7 @@ export const SERVICE_TYPES_ENUM = {
 };
 
 export const BETA_SERVICES = [
+  DatabaseServiceType.MotherDuck,
   PipelineServiceType.Ssis,
   DatabaseServiceType.Ssas,
   DatabaseServiceType.Epic,

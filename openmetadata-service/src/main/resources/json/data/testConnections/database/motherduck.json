@@ -1,0 +1,38 @@
+{
+    "name": "MotherDuck",
+    "displayName": "MotherDuck Test Connection",
+    "description": "Validate access to MotherDuck and the metadata visible to the configured token.",
+    "steps": [
+        {
+            "name": "CheckAccess",
+            "description": "Validate that we can properly reach the service and authenticate with the given credentials.",
+            "errorMessage": "Failed to connect to MotherDuck. Validate the access token.",
+            "shortCircuit": true,
+            "mandatory": true
+        },
+        {
+            "name": "GetDatabases",
+            "description": "List the MotherDuck databases visible to the token.",
+            "errorMessage": "Failed to list MotherDuck databases.",
+            "mandatory": true
+        },
+        {
+            "name": "GetSchemas",
+            "description": "List all the schemas available to the user.",
+            "errorMessage": "Failed to list all the schemas available to the user.",
+            "mandatory": true
+        },
+        {
+            "name": "GetTables",
+            "description": "List the tables belonging to a schema.",
+            "errorMessage": "Failed to list the tables belonging to a schema.",
+            "mandatory": true
+        },
+        {
+            "name": "GetViews",
+            "description": "List the views belonging to a schema.",
+            "errorMessage": "Failed to list the views belonging to a schema.",
+            "mandatory": false
+        }
+    ]
+}
