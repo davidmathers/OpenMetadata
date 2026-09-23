@@ -30,6 +30,7 @@ from metadata.ingestion.source.database.motherduck.queries import (
     MOTHERDUCK_GET_DATABASES,
     MOTHERDUCK_GET_SCHEMAS,
 )
+from metadata.utils.client_version import get_client_version
 
 CONNECTION_MODULE = "metadata.ingestion.source.database.motherduck.connection"
 
@@ -59,7 +60,7 @@ def test_connection_args_merge_user_config_and_secret_token():
         "config": {
             "threads": "2",
             "motherduck_token": "test-token",
-            "custom_user_agent": "openmetadata/2.0.0",
+            "custom_user_agent": f"openmetadata/{get_client_version()}",
         }
     }
     assert config.connectionArguments.root == {"config": {"threads": "2"}}
